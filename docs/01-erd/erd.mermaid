@@ -1,0 +1,541 @@
+erDiagram
+
+    %% ===================== MODULE 01 — TENANT & COMPANY =====================
+    COMPANY {
+        uuid id PK
+        string name
+        string code UK "unique platform-wide"
+        string logo_url
+        string address
+        string contact_email
+        string contact_phone
+        bool is_active
+    }
+
+    BRANCH {
+        uuid id PK
+        uuid company_id FK
+        string name
+        string code "unique per company"
+        string address
+        bool is_active
+    }
+
+    DEPARTMENT {
+        uuid id PK
+        uuid company_id FK
+        uuid branch_id FK "nullable"
+        string name
+        string code "unique per company"
+        bool is_active
+    }
+
+    DESIGNATION {
+        uuid id PK
+        uuid company_id FK
+        string name
+        string code
+        string grade "e.g. BPS-17"
+        bool is_active
+    }
+
+    COST_CENTER {
+        uuid id PK
+        uuid company_id FK
+        string name
+        string code
+        bool is_active
+    }
+
+    FINANCIAL_YEAR {
+        uuid id PK
+        uuid company_id FK
+        string label "FY 2024-25"
+        date start_date
+        date end_date
+        bool is_current "only one true per company"
+    }
+
+    PAYROLL_CALENDAR {
+        uuid id PK
+        uuid company_id FK
+        uuid financial_year_id FK
+        int month
+        int year
+        date payroll_freeze_date
+        date payment_date
+        int working_days "authoritative day count"
+        json holidays
+        enum status "Open|Frozen|Closed"
+    }
+
+    %% ===================== MODULE 02 — EMPLOYEE PROFILE =====================
+    EMPLOYEE_PAYROLL_PROFILE {
+        uuid id PK
+        uuid company_id FK
+        string external_employee_id "ERP's own ID, upsert key"
+        string employee_code
+        string full_name "snapshot"
+        uuid branch_id FK
+        uuid department_id FK
+        uuid designation_id FK
+        uuid cost_center_id FK "nullable"
+        uuid salary_structure_id FK
+        decimal base_salary "feeds {BaseSalary} in formulas"
+        bool attendance_deduction_opt_in
+        date joining_date
+        date leaving_date "nullable"
+        enum status "Active|Inactive|Terminated"
+        date effective_from
+    }
+
+    EMPLOYEE_PAYROLL_PROFILE_HISTORY {
+        uuid id PK
+        uuid employee_payroll_profile_id FK
+        uuid company_id FK
+        string external_employee_id
+        string employee_code
+        string full_name
+        uuid salary_structure_id FK
+        decimal base_salary
+        date effective_from
+        date effective_to "null = current"
+        string changed_by
+        string change_reason
+    }
+
+    EMPLOYEE_BANK_ACCOUNT {
+        uuid id PK
+        uuid employee_payroll_profile_id FK
+        uuid company_id FK
+        string bank_name
+        string account_title
+        string account_number
+        string iban
+        string branch_code
+        bool is_primary
+        bool is_active
+    }
+
+    %% ===================== MODULE 03/04 — COMPONENTS & STRUCTURES =====================
+    SALARY_COMPONENT {
+        uuid id PK
+        uuid company_id FK
+        string name
+        string code UK "unique per company"
+        enum type "Earning|Deduction|EmployerContribution"
+        enum calculation_method "Fixed|PercentageOfBase|FormulaExpression|PerWorkingDay|PerHour"
+        decimal default_value
+        bool is_taxable
+        bool is_recurring
+        bool is_optional
+        bool is_active
+    }
+
+    SALARY_STRUCTURE {
+        uuid id PK
+        uuid company_id FK
+        string name
+        string code UK
+        date effective_from "versioned, not edited in place"
+        date effective_to
+        bool is_active
+    }
+
+    SALARY_STRUCTURE_COMPONENT {
+        uuid id PK
+        uuid salary_structure_id FK
+        uuid salary_component_id FK
+        string formula_expression "NCalc expression"
+        decimal fixed_amount
+        int sequence "evaluation order, no forward refs"
+        bool is_active
+    }
+
+    ALLOWANCE_RULE {
+        uuid id PK
+        uuid salary_structure_component_id FK
+        uuid company_id FK
+        enum application_mode
+        string condition_expression "NCalc boolean, nullable"
+        string description
+    }
+
+    DEDUCTION_RULE {
+        uuid id PK
+        uuid salary_structure_component_id FK
+        uuid company_id FK
+        enum deduction_type
+        bool is_opt_in
+        int grace_period_minutes
+        string deduction_formula
+        bool is_active
+    }
+
+    %% ===================== MODULE 08/09 — ATTENDANCE & LEAVE =====================
+    ATTENDANCE_SUMMARY {
+        uuid id PK
+        uuid company_id FK
+        string external_employee_id FK
+        int period_year
+        int period_month
+        int working_days
+        int absent_days
+        int late_days
+        int late_minutes
+        decimal overtime_hours
+        int half_days
+        int holidays
+        int weekends
+        string idempotency_key UK "prevents dup sync"
+        string source_system
+    }
+
+    LEAVE_SUMMARY {
+        uuid id PK
+        uuid company_id FK
+        string external_employee_id FK
+        int period_year
+        int period_month
+        decimal paid_leave_days
+        decimal unpaid_leave_days
+        decimal medical_leave_days
+        decimal casual_leave_days
+        decimal half_days
+        string idempotency_key UK
+    }
+
+    %% ===================== MODULE 10 — PAYROLL RUN ENGINE =====================
+    PAYROLL_RUN {
+        uuid id PK
+        uuid company_id FK
+        uuid financial_year_id FK
+        int period_year
+        int period_month
+        enum status "DRAFT..CLOSED, see state machine"
+        enum run_type "Regular|Supplementary|Correction"
+        uuid filter_branch_id "nullable"
+        uuid filter_department_id "nullable"
+        int total_employees
+        decimal total_gross
+        decimal total_deductions
+        decimal total_net
+        datetime generated_at
+        string generated_by
+        int version "increments on correction"
+        uuid parent_run_id FK "self-ref, correction lineage"
+        string remarks
+    }
+
+    PAYROLL_ENTRY {
+        uuid id PK
+        uuid payroll_run_id FK
+        uuid company_id FK
+        string external_employee_id
+        string employee_code "snapshot"
+        string employee_name "snapshot"
+        string department_name "snapshot"
+        string designation_name "snapshot"
+        string bank_name "snapshot"
+        string iban "snapshot"
+        decimal base_salary "snapshot"
+        int working_days "snapshot"
+        int absent_days "snapshot"
+        int late_days "snapshot"
+        decimal gross_salary
+        decimal total_deductions
+        decimal net_salary
+        enum status "Calculated|Disputed|Revised|Locked"
+    }
+
+    PAYROLL_ENTRY_COMPONENT {
+        uuid id PK
+        uuid payroll_entry_id FK
+        uuid salary_component_id FK
+        string component_code "snapshot"
+        string component_name "snapshot"
+        enum component_type "Earning|Deduction"
+        string formula_used "snapshot of formula"
+        decimal calculated_amount
+        bool is_manual_override
+    }
+
+    %% ===================== MODULE 11 — APPROVAL WORKFLOW =====================
+    APPROVAL_WORKFLOW_TEMPLATE {
+        uuid id PK
+        uuid company_id FK
+        string name
+        bool is_default
+    }
+
+    APPROVAL_WORKFLOW_STEP {
+        uuid id PK
+        uuid workflow_template_id FK
+        int step_order
+        string step_name
+        string required_role
+        bool is_optional
+        int sla_hours
+    }
+
+    PAYROLL_APPROVAL_RECORD {
+        uuid id PK
+        uuid payroll_run_id FK
+        uuid company_id FK
+        uuid workflow_step_id FK
+        int step_order "snapshot"
+        string step_name "snapshot"
+        enum action "Approved|Rejected|Skipped"
+        string actor_user_id
+        string actor_name
+        string comments
+        datetime action_at
+    }
+
+    %% ===================== MODULE 12 — SALARY SLIP =====================
+    SALARY_SLIP {
+        uuid id PK
+        uuid payroll_entry_id FK,UK "1:1 with entry"
+        uuid company_id FK
+        string external_employee_id
+        int period_year
+        int period_month
+        string pdf_url
+        datetime generated_at
+        datetime email_sent_at
+        string email_sent_to
+        datetime viewed_at
+        bool is_locked
+        int version "bumps on dispute revision"
+    }
+
+    %% ===================== MODULE 13 — DISPUTES =====================
+    DISPUTE_TICKET {
+        uuid id PK
+        uuid company_id FK
+        uuid payroll_entry_id FK
+        string external_employee_id
+        string raised_by
+        string subject
+        string description
+        enum status
+        enum priority "Low|Medium|High"
+        string assigned_to
+        datetime resolved_at
+        string resolved_by
+        string resolution_notes
+    }
+
+    DISPUTE_COMMENT {
+        uuid id PK
+        uuid dispute_ticket_id FK
+        string author_id
+        string author_name
+        string author_role
+        string content
+        datetime created_at
+    }
+
+    %% ===================== MODULE 14 — DISBURSEMENT =====================
+    DISBURSEMENT_BATCH {
+        uuid id PK
+        uuid company_id FK
+        uuid payroll_run_id FK
+        enum status "Pending..Completed"
+        decimal total_amount
+        int total_records
+        string bank_file_url
+        enum file_format "CSV|Excel"
+        datetime generated_at
+        string generated_by
+        datetime confirmed_at
+        string confirmed_by
+    }
+
+    BANK_TRANSFER_RECORD {
+        uuid id PK
+        uuid disbursement_batch_id FK
+        uuid payroll_entry_id FK
+        uuid company_id FK
+        string employee_code
+        string employee_name
+        string bank_name
+        string account_title
+        string iban
+        decimal amount
+        enum status "Pending|Transferred|Failed|Reversed"
+        string failure_reason
+        string transfer_reference
+    }
+
+    %% ===================== MODULE 15 — LOANS & ADVANCES =====================
+    EMPLOYEE_LOAN {
+        uuid id PK
+        uuid company_id FK
+        string external_employee_id
+        decimal loan_amount
+        decimal interest_rate
+        int total_installments
+        decimal installment_amount
+        date disbursed_date
+        int start_deduction_month
+        int start_deduction_year
+        enum status "Active|Completed|Cancelled"
+        decimal remaining_amount
+        string approved_by
+    }
+
+    LOAN_INSTALLMENT {
+        uuid id PK
+        uuid loan_id FK
+        int installment_number
+        int period_year
+        int period_month
+        decimal amount
+        uuid deducted_from_payroll_entry_id FK "nullable"
+        enum status "Pending|Deducted|Skipped"
+    }
+
+    ADVANCE_SALARY_REQUEST {
+        uuid id PK
+        uuid company_id FK
+        string external_employee_id
+        decimal requested_amount
+        decimal approved_amount
+        date requested_on
+        enum status "Pending|Approved|Rejected|Recovered"
+        int recovery_installments
+        int recovery_start_month
+        int recovery_start_year
+        string approved_by
+        decimal recovery_per_installment
+    }
+
+    %% ===================== MODULE 16 — BONUS & OVERTIME =====================
+    BONUS_RECORD {
+        uuid id PK
+        uuid company_id FK
+        string external_employee_id
+        enum bonus_type "Festival|Performance|Annual|Ad-hoc"
+        decimal amount
+        int for_period_year
+        int for_period_month
+        string description
+        string approved_by
+        enum status "Pending|IncludedInPayroll|Paid"
+        uuid included_in_payroll_entry_id FK "nullable"
+    }
+
+    OVERTIME_POLICY {
+        uuid company_id PK,FK "1:1 with company"
+        decimal hourly_multiplier
+        decimal weekend_multiplier
+        decimal holiday_multiplier
+        int max_overtime_hours_per_month
+        bool is_active
+    }
+
+    %% ===================== MODULE 17 — NOTIFICATIONS =====================
+    NOTIFICATION_RECORD {
+        uuid id PK
+        uuid company_id FK
+        string recipient_user_id
+        enum type "PayrollGenerated|ApprovalRequired|DisputeRaised|SlipReady"
+        string title
+        string body
+        uuid reference_id
+        string reference_type
+        bool is_read
+    }
+
+    %% ===================== MODULE 19 — AUDIT =====================
+    AUDIT_LOG {
+        uuid id PK
+        uuid company_id FK
+        string entity_type
+        string entity_id
+        enum action "Created|Updated|Deleted|Approved|Rejected|Generated|Disbursed"
+        string actor_id
+        string actor_name
+        string actor_role
+        string actor_ip
+        json old_values
+        json new_values
+        json diff
+        json metadata
+    }
+
+    %% ===================== AUTH =====================
+    API_KEY {
+        uuid id PK
+        uuid company_id FK
+        string key_hash UK "SHA-256, never plaintext"
+        string label
+        bool is_active
+        datetime expires_at
+    }
+
+    %% ========================= RELATIONSHIPS =========================
+    COMPANY ||--o{ BRANCH : "operates"
+    COMPANY ||--o{ DEPARTMENT : "owns"
+    BRANCH  ||--o{ DEPARTMENT : "contains"
+    COMPANY ||--o{ DESIGNATION : "defines"
+    COMPANY ||--o{ COST_CENTER : "defines"
+    COMPANY ||--o{ FINANCIAL_YEAR : "defines"
+    FINANCIAL_YEAR ||--o{ PAYROLL_CALENDAR : "has months"
+    COMPANY ||--o{ PAYROLL_CALENDAR : "scopes"
+
+    COMPANY ||--o{ EMPLOYEE_PAYROLL_PROFILE : "employs"
+    BRANCH ||--o{ EMPLOYEE_PAYROLL_PROFILE : "assigned to"
+    DEPARTMENT ||--o{ EMPLOYEE_PAYROLL_PROFILE : "assigned to"
+    DESIGNATION ||--o{ EMPLOYEE_PAYROLL_PROFILE : "assigned to"
+    COST_CENTER ||--o{ EMPLOYEE_PAYROLL_PROFILE : "assigned to"
+    SALARY_STRUCTURE ||--o{ EMPLOYEE_PAYROLL_PROFILE : "assigned to"
+    EMPLOYEE_PAYROLL_PROFILE ||--o{ EMPLOYEE_PAYROLL_PROFILE_HISTORY : "versioned as"
+    EMPLOYEE_PAYROLL_PROFILE ||--o{ EMPLOYEE_BANK_ACCOUNT : "receives pay via"
+
+    COMPANY ||--o{ SALARY_COMPONENT : "defines"
+    COMPANY ||--o{ SALARY_STRUCTURE : "defines"
+    SALARY_STRUCTURE ||--o{ SALARY_STRUCTURE_COMPONENT : "composed of"
+    SALARY_COMPONENT ||--o{ SALARY_STRUCTURE_COMPONENT : "used as"
+    SALARY_STRUCTURE_COMPONENT ||--o| ALLOWANCE_RULE : "gated by"
+    SALARY_STRUCTURE_COMPONENT ||--o| DEDUCTION_RULE : "gated by"
+
+    COMPANY ||--o{ ATTENDANCE_SUMMARY : "receives"
+    EMPLOYEE_PAYROLL_PROFILE ||--o{ ATTENDANCE_SUMMARY : "reported for (by external id)"
+    COMPANY ||--o{ LEAVE_SUMMARY : "receives"
+    EMPLOYEE_PAYROLL_PROFILE ||--o{ LEAVE_SUMMARY : "reported for (by external id)"
+
+    COMPANY ||--o{ PAYROLL_RUN : "generates"
+    FINANCIAL_YEAR ||--o{ PAYROLL_RUN : "belongs to"
+    PAYROLL_RUN ||--o{ PAYROLL_RUN : "corrected by (parent_run_id)"
+    PAYROLL_RUN ||--o{ PAYROLL_ENTRY : "produces"
+    PAYROLL_ENTRY ||--o{ PAYROLL_ENTRY_COMPONENT : "broken down into"
+    SALARY_COMPONENT ||--o{ PAYROLL_ENTRY_COMPONENT : "instantiated as"
+
+    COMPANY ||--o{ APPROVAL_WORKFLOW_TEMPLATE : "configures"
+    APPROVAL_WORKFLOW_TEMPLATE ||--o{ APPROVAL_WORKFLOW_STEP : "composed of"
+    PAYROLL_RUN ||--o{ PAYROLL_APPROVAL_RECORD : "tracked by"
+    APPROVAL_WORKFLOW_STEP ||--o{ PAYROLL_APPROVAL_RECORD : "actioned at"
+
+    PAYROLL_ENTRY ||--|| SALARY_SLIP : "documented by"
+    PAYROLL_ENTRY ||--o{ DISPUTE_TICKET : "disputed via"
+    DISPUTE_TICKET ||--o{ DISPUTE_COMMENT : "discussed via"
+    DISPUTE_TICKET ||--o| PAYROLL_RUN : "triggers correction run"
+
+    PAYROLL_RUN ||--o| DISBURSEMENT_BATCH : "paid out via"
+    DISBURSEMENT_BATCH ||--o{ BANK_TRANSFER_RECORD : "itemized as"
+    PAYROLL_ENTRY ||--|| BANK_TRANSFER_RECORD : "transferred as"
+
+    COMPANY ||--o{ EMPLOYEE_LOAN : "grants"
+    EMPLOYEE_LOAN ||--o{ LOAN_INSTALLMENT : "repaid over"
+    LOAN_INSTALLMENT ||--o| PAYROLL_ENTRY : "deducted in"
+
+    COMPANY ||--o{ ADVANCE_SALARY_REQUEST : "approves"
+    COMPANY ||--o{ BONUS_RECORD : "approves"
+    BONUS_RECORD ||--o| PAYROLL_ENTRY : "included in"
+    COMPANY ||--|| OVERTIME_POLICY : "configures"
+
+    COMPANY ||--o{ NOTIFICATION_RECORD : "sends"
+    COMPANY ||--o{ AUDIT_LOG : "records"
+    COMPANY ||--o{ API_KEY : "issues"

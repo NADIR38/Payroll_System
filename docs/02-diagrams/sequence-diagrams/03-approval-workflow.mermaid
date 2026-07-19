@@ -1,0 +1,43 @@
+sequenceDiagram
+    autonumber
+    participant HR as HRManager
+    participant FIN as FinanceManager
+    participant CTRL as ApprovalsController
+    participant DB as PostgreSQL
+    participant NOTIF as Notification/Email Service
+    participant WH as WebhookDispatcherService
+
+    Note over HR,FIN: ApprovalWorkflowTemplate for this company:<br/>Step 1 = HRManager, Step 2 = FinanceManager
+
+    HR->>CTRL: POST /payroll/runs/{id}/approve<br/>{comments}
+    CTRL->>DB: verify current pending step's RequiredRole == caller's role
+    alt role mismatch
+        CTRL-->>HR: 403 APPROVAL_STEP_UNAUTHORIZED
+    else role matches
+        CTRL->>DB: INSERT PayrollApprovalRecord<br/>(step=1, action=Approved, actor=HR)
+        CTRL->>DB: UPDATE PayrollRun.Status = UNDER_REVIEW
+        CTRL->>NOTIF: notify next approver (FinanceManager)
+        CTRL-->>HR: 200 OK
+    end
+
+    FIN->>CTRL: POST /payroll/runs/{id}/reject<br/>{comments: "Overtime figures look off"}
+    CTRL->>DB: INSERT PayrollApprovalRecord (step=2, action=Rejected)
+    CTRL->>DB: UPDATE PayrollRun.Status = GENERATED
+    CTRL->>NOTIF: notify HR of rejection
+    CTRL-->>FIN: 200 OK
+
+    Note over HR,DB: HR fixes the issue (e.g. manual component<br/>override), re-submits for approval
+
+    HR->>CTRL: POST /payroll/runs/{id}/approve
+    CTRL->>DB: INSERT PayrollApprovalRecord (step=1, Approved)
+    CTRL->>DB: UPDATE PayrollRun.Status = UNDER_REVIEW
+    CTRL->>NOTIF: notify FinanceManager
+
+    FIN->>CTRL: POST /payroll/runs/{id}/approve
+    CTRL->>DB: INSERT PayrollApprovalRecord (step=2, Approved)
+    CTRL->>DB: all steps complete →<br/>UPDATE PayrollRun.Status = APPROVED
+    CTRL->>WH: fire webhook "payroll.approved"
+    CTRL->>NOTIF: notify HR + Finance
+    CTRL-->>FIN: 200 OK
+
+    Note over CTRL,DB: SLA breach (approval not actioned within<br/>ApprovalWorkflowStep.SLAHours) independently<br/>triggers an escalation notification job

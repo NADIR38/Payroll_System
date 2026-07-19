@@ -1,0 +1,51 @@
+sequenceDiagram
+    autonumber
+    participant PO as PayrollOfficer / HRManager
+    participant CTRL as PayrollRunsController
+    participant HF as Hangfire Scheduler
+    participant W as PayrollGenerationWorker
+    participant DB as PostgreSQL
+    participant FE as FormulaEvaluatorService (NCalc)
+    participant WH as WebhookDispatcherService
+    participant NOTIF as NotificationRecord
+
+    PO->>CTRL: POST /payroll/runs<br/>{companyId, periodYear, periodMonth, runType}
+    CTRL->>DB: INSERT PayrollRun (status=DRAFT)
+    CTRL->>HF: enqueue job(payrollRunId)
+    CTRL-->>PO: 202 { payrollRunId, status: DRAFT, jobId }
+
+    HF->>W: Execute(payrollRunId)
+    W->>DB: UPDATE PayrollRun.Status = GENERATING (transient)
+    W->>DB: SELECT active EmployeePayrollProfiles<br/>(profile version active on period start date)
+
+    loop for each employee (max 10 concurrent)
+        W->>DB: load AttendanceSummary(employee, period)
+        W->>DB: load LeaveSummary(employee, period)
+        W->>DB: load active LoanInstallment / AdvanceRecovery
+        W->>W: build FormulaContext<br/>(BaseSalary, WorkingDays, AbsentDays, ...)
+        W->>DB: load SalaryStructureComponents<br/>ORDER BY Sequence ASC
+        loop for each component in sequence order
+            W->>FE: IsComponentApplicable? (AllowanceRule / DeductionRule)
+            FE-->>W: true / false
+            alt applicable
+                W->>FE: Evaluate(FormulaExpression, context)
+                FE-->>W: calculated amount
+                W->>W: ComponentValues[code] = amount<br/>update running GrossSalary
+            else not applicable
+                W->>W: value = 0
+            end
+        end
+        W->>DB: INSERT PayrollEntry (snapshot: name, IBAN, dept, ...)
+        W->>DB: INSERT PayrollEntryComponent (one row per component,<br/>FormulaUsed = snapshot text)
+    end
+
+    alt some employees missing data
+        W->>DB: mark those PayrollEntry.Status =<br/>AttendanceMissing / StructureMissing
+    end
+
+    W->>DB: aggregate & UPDATE PayrollRun<br/>(TotalGross, TotalDeductions, TotalNet)
+    W->>DB: UPDATE PayrollRun.Status = GENERATED
+    W->>WH: fire webhook "payroll.generated"
+    W->>NOTIF: create notification for HR
+
+    Note over W,DB: If the whole job throws unexpectedly,<br/>PayrollRun.Status = FAILED with error in<br/>Remarks — never left ambiguous (§15.6, §27.2)

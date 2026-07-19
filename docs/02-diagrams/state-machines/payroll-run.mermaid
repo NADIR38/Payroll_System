@@ -1,0 +1,49 @@
+stateDiagram-v2
+    [*] --> DRAFT: POST /payroll/runs (job queued)
+
+    DRAFT --> GENERATING: Hangfire worker picks up job
+    GENERATING --> GENERATED: all entries calculated
+    GENERATING --> FAILED: unrecoverable error during generation
+
+    GENERATED --> UNDER_REVIEW: first approval step approved
+    GENERATED --> DISPUTED: an entry gets a dispute ticket
+    GENERATED --> CANCELLED: cancelled before disbursement
+
+    UNDER_REVIEW --> UNDER_REVIEW: intermediate approval steps approved
+    UNDER_REVIEW --> GENERATED: any step rejected
+    UNDER_REVIEW --> DISPUTED: an entry gets a dispute ticket
+    UNDER_REVIEW --> CANCELLED: cancelled before disbursement
+    UNDER_REVIEW --> APPROVED: final approval step approved
+
+    DISPUTED --> UNDER_REVIEW: dispute resolved without correction
+    DISPUTED --> GENERATED: dispute triggers correction run (new PayrollRun, version+1)
+
+    APPROVED --> DISBURSEMENT_PENDING: DisbursementBatch created
+    DISBURSEMENT_PENDING --> DISBURSED: bank file confirmed
+    DISBURSEMENT_PENDING --> DISBURSEMENT_PENDING: some records marked Failed (partial)
+
+    DISBURSED --> CLOSED: period closed out
+
+    CANCELLED --> [*]
+    FAILED --> [*]
+    CLOSED --> [*]
+
+    note right of GENERATED
+        Entries can individually be
+        AttendanceMissing / StructureMissing
+        while run stays GENERATED — HR must
+        resolve before approval can start (§15.6)
+    end note
+
+    note right of APPROVED
+        PayrollEntry + PayrollEntryComponent
+        become immutable the moment the run
+        passes GENERATED into approval (§2.4, §27.4)
+    end note
+
+    note left of DISBURSEMENT_PENDING
+        v1 has no direct bank API (§1.5) —
+        this state exists purely to track the
+        manual "download CSV/Excel → upload to
+        bank portal → confirm" workflow (§19.4)
+    end note

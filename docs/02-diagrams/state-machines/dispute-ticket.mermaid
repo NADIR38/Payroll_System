@@ -1,0 +1,29 @@
+stateDiagram-v2
+    [*] --> OPEN: employee raises dispute (POST /disputes)
+
+    OPEN --> UNDER_REVIEW: payroll officer picks it up / is assigned
+
+    UNDER_REVIEW --> PAYROLL_CORRECTION_REQUIRED: investigation shows the\ncalculation itself was wrong
+    UNDER_REVIEW --> REJECTED: dispute found invalid
+    UNDER_REVIEW --> RESOLVED: dispute valid but needs\nonly an explanation, no recalculation
+
+    PAYROLL_CORRECTION_REQUIRED --> CORRECTION_IN_PROGRESS: correction PayrollRun created\n(RunType=Correction, ParentRunId=original)
+
+    CORRECTION_IN_PROGRESS --> RESOLVED: correction run approved,\nnew SalarySlip generated (Version+1),\nold slip superseded (not deleted)
+
+    RESOLVED --> [*]
+    REJECTED --> [*]
+
+    note right of PAYROLL_CORRECTION_REQUIRED
+        Correction run contains ONLY the
+        disputed employee's entry and goes
+        through the SAME approval workflow
+        as a regular run (§18.4)
+    end note
+
+    note right of RESOLVED
+        Both resolution paths (with or
+        without correction) converge here —
+        difference amount, if any, is tracked
+        separately for accounting reconciliation
+    end note

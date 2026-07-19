@@ -1,0 +1,42 @@
+sequenceDiagram
+    autonumber
+    participant FIN as FinanceManager
+    participant CTRL as DisbursementsController
+    participant DB as PostgreSQL
+    participant XL as ClosedXML/CSV Generator
+    participant STOR as StorageService (Supabase)
+    participant BANK as Banking Portal (manual, external)
+    participant WH as WebhookDispatcherService
+
+    Note over FIN,DB: Precondition: PayrollRun.Status = APPROVED<br/>(else 409 DISBURSEMENT_NOT_APPROVED)
+
+    FIN->>CTRL: POST /disbursements {payrollRunId}
+    CTRL->>DB: SELECT all PayrollEntry WHERE payroll_run_id
+    CTRL->>DB: INSERT DisbursementBatch (status=Pending)
+    CTRL->>DB: INSERT BankTransferRecord (one per entry,<br/>status=Pending, amount=NetSalary snapshot)
+
+    CTRL->>XL: build CSV (Sr#, Code, Name, Bank, IBAN, Amount)
+    CTRL->>XL: build Excel (formatted, protected cells)
+    XL-->>CTRL: file bytes
+    CTRL->>STOR: upload bank file
+    STOR-->>CTRL: BankFileUrl
+    CTRL->>DB: UPDATE DisbursementBatch.Status = Generated,<br/>BankFileUrl, TotalAmount, TotalRecords
+    CTRL-->>FIN: 200 { batchId, downloadUrls }
+
+    FIN->>CTRL: GET /disbursements/{id}/download/csv
+    CTRL-->>FIN: CSV file
+    FIN->>BANK: manually upload CSV to bank portal<br/>(no direct bank API in v1, §1.5)
+    BANK-->>FIN: transfer reference numbers (out of band)
+
+    FIN->>CTRL: POST /disbursements/{id}/confirm
+    CTRL->>DB: UPDATE DisbursementBatch.Status = Confirmed,<br/>ConfirmedAt, ConfirmedBy
+
+    opt some transfers failed
+        FIN->>CTRL: PATCH /disbursements/{id}/records/{rid}/fail<br/>{failureReason}
+        CTRL->>DB: UPDATE BankTransferRecord.Status = Failed
+        CTRL->>DB: UPDATE DisbursementBatch.Status = PartiallyFailed
+    end
+
+    CTRL->>DB: UPDATE PayrollRun.Status = DISBURSED
+    CTRL->>WH: fire webhook "payroll.disbursed"
+    CTRL-->>FIN: 200 OK

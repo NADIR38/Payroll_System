@@ -1,0 +1,43 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main", "feature/*" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test-dotnet:
+    name: Build & Test .NET Core API
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 9.0.x
+    - name: Restore dependencies
+      run: dotnet restore PayrollMS.sln
+    - name: Build
+      run: dotnet build PayrollMS.sln --no-restore
+    - name: Test
+      run: dotnet test PayrollMS.sln --no-build --verbosity normal
+
+  build-nextjs:
+    name: Build Next.js Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./payrollms-web
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    - name: Install dependencies
+      run: npm ci || npm install
+    - name: Run linter
+      run: npm run lint
+    - name: Build
+      run: npm run build

@@ -1,0 +1,37 @@
+stateDiagram-v2
+    state "LOAN INSTALLMENT" as LI {
+        [*] --> Pending: loan approved, schedule generated
+        Pending --> Deducted: period reached & PayrollEntry created\nwith LOAN_DEDUCT component
+        Pending --> Skipped: HR manually skips this month\n(e.g. employee on unpaid leave)
+        Deducted --> [*]
+        Skipped --> [*]
+    }
+
+    state "DISBURSEMENT BATCH" as DB {
+        [*] --> Pending_DB: POST /disbursements
+        Pending_DB --> Generated_DB: CSV/Excel file built & uploaded
+        Generated_DB --> Confirmed_DB: finance officer confirms\nbank portal upload
+        Confirmed_DB --> PartiallyFailed_DB: one or more records\nmarked Failed
+        Confirmed_DB --> Completed_DB: all records Transferred
+        PartiallyFailed_DB --> Completed_DB: failed records resolved/reversed
+    }
+
+    state "BANK TRANSFER RECORD" as BTR {
+        [*] --> Pending_BTR
+        Pending_BTR --> Transferred_BTR: bank confirms
+        Pending_BTR --> Failed_BTR: bad IBAN / closed account
+        Failed_BTR --> Reversed_BTR: funds returned to company
+    }
+
+    note right of LI
+        LoanInstallment.Status is set the moment
+        its PayrollEntry is created — this is what
+        updates EmployeeLoan.RemainingAmount (§20.3)
+    end note
+
+    note right of BTR
+        A transfer's own status is independent of
+        PayrollEntry.Status — a bank-side failure
+        must NOT reopen an already-Locked payroll
+        snapshot (§19.2)
+    end note

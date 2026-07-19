@@ -1,0 +1,36 @@
+sequenceDiagram
+    autonumber
+    participant PR as PayrollRun (status trigger)
+    participant HF as Hangfire
+    participant JOB as GenerateSalarySlipsJob
+    participant PDF as PdfGeneratorService (QuestPDF)
+    participant STOR as StorageService (Supabase Storage)
+    participant DB as PostgreSQL
+    participant MAIL as EmailService (Resend/MailKit)
+    participant EMP as Employee
+    participant WH as WebhookDispatcherService
+
+    PR->>HF: status becomes APPROVED → enqueue job(payrollRunId)
+    HF->>JOB: Execute(payrollRunId)
+    JOB->>DB: SELECT all PayrollEntry WHERE payroll_run_id
+
+    loop for each PayrollEntry
+        JOB->>DB: load Company info (logo, name, address)
+        JOB->>PDF: BuildSlip(entry, components, company)
+        PDF-->>JOB: PDF bytes
+        JOB->>STOR: upload /slips/{companyId}/{yyyy}/{mm}/{employeeCode}.pdf
+        STOR-->>JOB: signed URL (1-hour expiry)
+        JOB->>DB: INSERT SalarySlip (PdfUrl, Version=1)
+        JOB->>HF: enqueue email delivery job(slipId)
+    end
+
+    par email delivery (async, per slip)
+        HF->>MAIL: send PDF to employee's registered email
+        MAIL-->>EMP: "Your salary slip for July 2025 is ready" + PDF
+        MAIL->>DB: UPDATE SalarySlip.EmailSentAt, EmailSentTo
+    end
+
+    JOB->>WH: fire webhook "payroll.slips_generated"
+
+    Note over EMP,DB: Employee later opens slip via signed URL →<br/>UPDATE SalarySlip.ViewedAt
+    Note over EMP,DB: Third party (bank/embassy) can hit the public<br/>GET /slips/verify/{slipId} endpoint without auth<br/>to confirm authenticity via QR code (§17.6)

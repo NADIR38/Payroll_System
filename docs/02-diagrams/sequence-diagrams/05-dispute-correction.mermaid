@@ -1,0 +1,53 @@
+sequenceDiagram
+    autonumber
+    participant EMP as Employee
+    participant DCTRL as DisputesController
+    participant OFF as PayrollOfficer
+    participant DB as PostgreSQL
+    participant PCTRL as PayrollRunsController<br/>(correction path)
+    participant APPR as Approval Workflow
+    participant SLIP as Salary Slip Job
+    participant WH as WebhookDispatcherService
+
+    EMP->>DCTRL: POST /disputes<br/>{payrollEntryId, subject, description}
+    DCTRL->>DB: INSERT DisputeTicket (status=OPEN)
+    DCTRL->>DB: UPDATE PayrollEntry.Status = Disputed
+    DCTRL->>DB: UPDATE PayrollRun.Status = DISPUTED
+    DCTRL->>WH: fire webhook "dispute.raised"
+    DCTRL-->>EMP: 201 Created
+
+    OFF->>DCTRL: PATCH /disputes/{id}/assign {assignedTo: officer}
+    DCTRL->>DB: UPDATE DisputeTicket.AssignedTo, Status=UNDER_REVIEW
+
+    OFF->>DCTRL: POST /disputes/{id}/comments<br/>{"Investigating attendance mismatch"}
+    DCTRL->>DB: INSERT DisputeComment
+
+    alt correction needed
+        OFF->>DCTRL: PATCH /disputes/{id}/status<br/>{PAYROLL_CORRECTION_REQUIRED}
+        OFF->>DCTRL: POST /disputes/{id}/initiate-correction
+        DCTRL->>DB: INSERT PayrollRun<br/>(RunType=Correction, ParentRunId=original,<br/>Version=original.Version+1)
+        DCTRL->>DB: INSERT PayrollEntry (only disputed employee,<br/>status=DRAFT)
+        DCTRL->>DB: UPDATE DisputeTicket.Status = CORRECTION_IN_PROGRESS
+
+        OFF->>PCTRL: PATCH component override (adjust figure)
+        PCTRL->>DB: UPDATE PayrollEntryComponent<br/>(IsManualOverride=true) + AuditLog
+
+        OFF->>APPR: submit correction run through<br/>SAME approval workflow (see seq_03)
+        APPR->>DB: UPDATE correction PayrollRun.Status = APPROVED
+
+        APPR->>SLIP: trigger slip regeneration for this entry
+        SLIP->>DB: INSERT new SalarySlip (Version=2)
+        SLIP->>DB: UPDATE old SalarySlip.IsLocked/superseded (not deleted)
+
+        DCTRL->>DB: UPDATE DisputeTicket.Status = RESOLVED,<br/>ResolvedAt, ResolvedBy
+        DCTRL->>WH: fire webhook "dispute.resolved"
+    else no correction needed
+        OFF->>DCTRL: POST /disputes/{id}/resolve<br/>{resolutionNotes}
+        DCTRL->>DB: UPDATE DisputeTicket.Status = RESOLVED
+        DCTRL->>WH: fire webhook "dispute.resolved"
+    else dispute invalid
+        OFF->>DCTRL: POST /disputes/{id}/reject {reason}
+        DCTRL->>DB: UPDATE DisputeTicket.Status = REJECTED
+    end
+
+    DCTRL-->>EMP: notification: dispute resolved/rejected

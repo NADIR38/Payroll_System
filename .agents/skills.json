@@ -1,0 +1,23 @@
+{
+  "entries": [
+    { "path": "dotnet_skills_repo/.agents/skills" },
+    { "path": "dotnet_skills_repo/.github/skills" },
+    { "path": "dotnet_skills_repo/plugins/dotnet/skills" },
+    { "path": "dotnet_skills_repo/plugins/dotnet-advanced/skills" },
+    { "path": "dotnet_skills_repo/plugins/dotnet-ai/skills" },
+    { "path": "dotnet_skills_repo/plugins/dotnet-aspnetcore/skills" },
+    { "path": "dotnet_skills_repo/plugins/dotnet-blazor/skills" },
+    { "path": "dotnet_skills_repo/plugins/dotnet-data/skills" },
+    { "path": "dotnet_skills_repo/plugins/dotnet-diag/skills" },
+    { "path": "dotnet_skills_repo/plugins/dotnet-experimental/skills" },
+    { "path": "dotnet_skills_repo/plugins/dotnet-maui/skills" },
+    { "path": "dotnet_skills_repo/plugins/dotnet-msbuild/skills" },
+    { "path": "dotnet_skills_repo/plugins/dotnet-nuget/skills" },
+    { "path": "dotnet_skills_repo/plugins/dotnet-template-engine/skills" },
+    { "path": "dotnet_skills_repo/plugins/dotnet-test/skills" },
+    { "path": "dotnet_skills_repo/plugins/dotnet-test-migration/skills" },
+    { "path": "dotnet_skills_repo/plugins/dotnet-upgrade/skills" },
+    { "path": "dotnet_skills_repo/plugins/dotnet11/skills" },
+    { "path": "ui-ux-pro-max-skill/.claude/skills" }
+  ]
+}

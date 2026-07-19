@@ -1,0 +1,37 @@
+sequenceDiagram
+    autonumber
+    participant ERP as External ERP<br/>(School/Hospital)
+    participant GW as API Gateway
+    participant MW as ApiKeyAuthMiddleware
+    participant CTRL as EmployeesController /<br/>AttendanceController / LeaveController
+    participant MED as MediatR<br/>(TenantIsolationBehavior)
+    participant DB as PostgreSQL<br/>(Supabase, RLS)
+    participant AUD as AuditBehavior
+
+    ERP->>GW: POST /employees/sync<br/>X-Api-Key, X-Company-Id, employee JSON
+    GW->>MW: forward request
+    MW->>DB: lookup hashed key in api_keys
+    DB-->>MW: key valid, bound to company_id
+    MW->>MW: set ICurrentTenant.CompanyId<br/>set ClaimsPrincipal(Role=ApiClient)
+    MW->>CTRL: request (tenant resolved)
+
+    CTRL->>MED: SyncEmployeeCommand
+    MED->>MED: inject companyId into command (TenantIsolationBehavior)
+    MED->>DB: SELECT profile WHERE external_employee_id + company_id
+
+    alt profile exists
+        DB-->>MED: existing EmployeePayrollProfile
+        MED->>DB: INSERT EmployeePayrollProfileHistory<br/>(copy old row, EffectiveTo = today)
+        MED->>DB: UPDATE EmployeePayrollProfile (new values)
+        MED->>DB: INSERT EmployeePayrollProfileHistory<br/>(new row, EffectiveFrom = today, EffectiveTo = null)
+        MED-->>CTRL: action = "Updated"
+    else no profile
+        MED->>DB: INSERT EmployeePayrollProfile
+        MED->>DB: INSERT EmployeePayrollProfileHistory (EffectiveFrom = today)
+        MED-->>CTRL: action = "Created"
+    end
+
+    MED->>AUD: write AuditLog (EntityType=EmployeePayrollProfile)
+    CTRL-->>ERP: 200 { success, profileId, action }
+
+    Note over ERP,DB: Same shape applies to<br/>POST /attendance/sync and /leave/sync,<br/>except they upsert by IdempotencyKey<br/>and are REJECTED (409) if the period's<br/>PayrollRun is already past GENERATED (§13.4)
