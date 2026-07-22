@@ -6,7 +6,6 @@ import { payrollApi, PendingApprovalItemResponse } from "@/lib/api/payroll";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { SectionHeader } from "@/components/ui/section-header";
 import { CheckSquare, ArrowRight } from "lucide-react";
 
 export default function PendingApprovalsPage() {
@@ -18,21 +17,21 @@ export default function PendingApprovalsPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+    const fetchPendingApprovals = async () => {
+      try {
+        const userRole = role === "hr" ? "HRManager" : role === "finance" ? "FinanceManager" : "CompanyAdmin";
+        const data = await payrollApi.getPendingApprovals(userRole);
+        if (isMounted) setPendingItems(data);
+      } catch (error) {
+        console.error("Failed to fetch pending approvals:", error);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
     fetchPendingApprovals();
-  }, []);
-
-  const fetchPendingApprovals = async () => {
-    try {
-      setIsLoading(true);
-      const userRole = role === "hr" ? "HRManager" : role === "finance" ? "FinanceManager" : "CompanyAdmin";
-      const data = await payrollApi.getPendingApprovals(userRole);
-      setPendingItems(data);
-    } catch (error) {
-      console.error("Failed to fetch pending approvals:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    return () => { isMounted = false; };
+  }, [role]);
 
   return (
     <div className="space-y-6">

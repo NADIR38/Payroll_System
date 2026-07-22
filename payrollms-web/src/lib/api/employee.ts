@@ -115,7 +115,7 @@ export const EmployeeApi = {
   },
 
   syncEmployee: async (command: SyncEmployeeCommand): Promise<{ profileId: string, action: string }> => {
-    const res = (await apiClient.post("/employees", command)) as any;
+    const res = (await apiClient.post("/employees", command)) as { profileId: string; action: string } | string;
     return typeof res === "string" ? { profileId: res, action: "Created" } : res;
   },
 

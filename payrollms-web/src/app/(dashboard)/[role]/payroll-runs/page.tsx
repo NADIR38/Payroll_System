@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { payrollApi, PayrollRunResponse } from "@/lib/api/payroll";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { SectionHeader } from "@/components/ui/section-header";
 import { Plus, Play, RefreshCw, Eye, CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { isAxiosError } from "axios";
@@ -32,13 +31,8 @@ export default function PayrollRunsPage() {
     remarks: "Regular monthly payroll run",
   });
 
-  useEffect(() => {
-    fetchRuns();
-  }, []);
-
-  const fetchRuns = async () => {
+  const fetchRuns = useCallback(async () => {
     try {
-      setIsLoading(true);
       const data = await payrollApi.getPayrollRuns(1, 50);
       setRuns(data.items);
     } catch (error) {
@@ -46,7 +40,23 @@ export default function PayrollRunsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadRuns = async () => {
+      try {
+        const data = await payrollApi.getPayrollRuns(1, 50);
+        if (isMounted) setRuns(data.items);
+      } catch (error) {
+        console.error("Failed to load payroll runs:", error);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+    loadRuns();
+    return () => { isMounted = false; };
+  }, []);
 
   const handleCreateRun = async (e: React.FormEvent) => {
     e.preventDefault();

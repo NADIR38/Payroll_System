@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import { EmployeeApi, EmployeeProfileResponse, EmployeeProfileHistoryResponse } from "@/lib/api/employee";
 import { TenantApi } from "@/lib/api/tenant";
@@ -37,13 +37,8 @@ export default function EmployeeDetailsPage({ params }: { params: Promise<{ role
     isPrimary: false
   });
 
-  useEffect(() => {
-    fetchData();
-  }, [id]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
-      setIsLoading(true);
       const [profileData, historyData] = await Promise.all([
         EmployeeApi.getEmployeeById(id),
         EmployeeApi.getEmployeeHistory(id)
@@ -51,7 +46,6 @@ export default function EmployeeDetailsPage({ params }: { params: Promise<{ role
       setEmployee(profileData);
       setHistory(historyData);
 
-      // Fetch names concurrently without blocking main render if they fail
       Promise.all([
         TenantApi.getDepartmentById(profileData.departmentId).catch(() => null),
         TenantApi.getBranchById(profileData.branchId).catch(() => null)
@@ -59,13 +53,43 @@ export default function EmployeeDetailsPage({ params }: { params: Promise<{ role
         setDepartmentName(dept ? dept.name : "Unknown Department");
         setBranchName(branch ? branch.name : "Unknown Branch");
       });
-
     } catch (error) {
       console.error("Failed to load employee details:", error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadData = async () => {
+      try {
+        const [profileData, historyData] = await Promise.all([
+          EmployeeApi.getEmployeeById(id),
+          EmployeeApi.getEmployeeHistory(id)
+        ]);
+        if (isMounted) {
+          setEmployee(profileData);
+          setHistory(historyData);
+        }
+
+        const [dept, branch] = await Promise.all([
+          TenantApi.getDepartmentById(profileData.departmentId).catch(() => null),
+          TenantApi.getBranchById(profileData.branchId).catch(() => null)
+        ]);
+        if (isMounted) {
+          setDepartmentName(dept ? dept.name : "Unknown Department");
+          setBranchName(branch ? branch.name : "Unknown Branch");
+        }
+      } catch (error) {
+        console.error("Failed to load employee details:", error);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+    loadData();
+    return () => { isMounted = false; };
+  }, [id]);
 
   const handleSetPrimaryBank = async (accountId: string) => {
     try {

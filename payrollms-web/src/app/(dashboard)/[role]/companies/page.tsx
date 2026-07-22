@@ -37,7 +37,7 @@ export default function CompaniesDirectoryPage() {
       c.contactEmail?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  const openEditModal = (company: any) => {
+  const openEditModal = (company: import("@/lib/api/tenant").CompanyDto) => {
     setEditingId(company.id)
     setFormData({
       code: company.code || "",

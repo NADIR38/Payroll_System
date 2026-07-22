@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { attendanceApi, AttendanceSummaryResponse } from "@/lib/api/attendance";
+import { useState } from "react";
+import { attendanceApi } from "@/lib/api/attendance";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { SectionHeader } from "@/components/ui/section-header";
 import { Calendar, Plus, RefreshCw, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { isAxiosError } from "axios";

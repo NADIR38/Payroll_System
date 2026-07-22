@@ -11,7 +11,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter 
 } from "@/components/ui/dialog"
-import { Plus, Calendar, Snowflake, Lock, RefreshCw, CheckCircle, AlertTriangle } from "lucide-react"
+import { Plus, Calendar, Snowflake, Lock, RefreshCw } from "lucide-react"
 import { 
   useFinancialYears, useCreateFinancialYear, useMarkFinancialYearCurrent,
   usePayrollCalendars, useFreezePayrollCalendar, useClosePayrollCalendar, useReopenPayrollCalendar
@@ -27,7 +27,6 @@ export default function FinancialOperationsPage() {
   const closeCalendar = useClosePayrollCalendar()
   const reopenCalendar = useReopenPayrollCalendar()
 
-  const [activeTab, setActiveTab] = React.useState("financial-years")
   const [isModalOpen, setIsModalOpen] = React.useState(false)
   const [formData, setFormData] = React.useState({ label: "", startDate: "", endDate: "" })
 
@@ -49,7 +48,7 @@ export default function FinancialOperationsPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="financial-years" onValueChange={setActiveTab}>
+      <Tabs defaultValue="financial-years">
         <TabsList>
           <TabsTrigger value="financial-years" className="flex items-center space-x-2">
             <Calendar className="w-3.5 h-3.5" />

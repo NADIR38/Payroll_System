@@ -10,7 +10,7 @@ export function useCompanies() {
     queryFn: async () => {
       try {
         return await TenantApi.getCompanies();
-      } catch (err) {
+      } catch {
         console.warn("Backend offline or unreachable, serving initial tenant data.");
         return [
           { id: "1", code: "ACME", name: "Acme Corporation", contactEmail: "admin@acme.com", contactPhone: "+1 (555) 019-2831", isActive: true },
@@ -35,7 +35,7 @@ export function useCreateCompany() {
 export function useUpdateCompany() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => TenantApi.updateCompany(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => TenantApi.updateCompany(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["companies"] });
     },
@@ -69,7 +69,7 @@ export function useBranches(companyId?: string) {
     queryFn: async () => {
       try {
         return await TenantApi.getBranches(companyId);
-      } catch (err) {
+      } catch {
         return [
           { id: "b1", companyId: "1", code: "HQ", name: "Headquarters", isActive: true },
           { id: "b2", companyId: "1", code: "NY", name: "New York Office", isActive: true },
@@ -90,7 +90,7 @@ export function useCreateBranch() {
 export function useUpdateBranch() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => TenantApi.updateBranch(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => TenantApi.updateBranch(id, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["branches"] }),
   });
 }
@@ -102,7 +102,7 @@ export function useDepartments(companyId?: string) {
     queryFn: async () => {
       try {
         return await TenantApi.getDepartments(companyId);
-      } catch (err) {
+      } catch {
         return [
           { id: "d1", companyId: "1", code: "ENG", name: "Engineering", isActive: true },
           { id: "d2", companyId: "1", code: "HR", name: "Human Resources", isActive: true },
@@ -124,7 +124,7 @@ export function useCreateDepartment() {
 export function useUpdateDepartment() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => TenantApi.updateDepartment(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => TenantApi.updateDepartment(id, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["departments"] }),
   });
 }
@@ -136,7 +136,7 @@ export function useDesignations(companyId?: string) {
     queryFn: async () => {
       try {
         return await TenantApi.getDesignations(companyId);
-      } catch (err) {
+      } catch {
         return [
           { id: "des1", companyId: "1", code: "SSE", name: "Senior Software Engineer", grade: "BPS-18", isActive: true },
           { id: "des2", companyId: "1", code: "HRM", name: "HR Manager", grade: "BPS-19", isActive: true },
@@ -157,7 +157,7 @@ export function useCreateDesignation() {
 export function useUpdateDesignation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => TenantApi.updateDesignation(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => TenantApi.updateDesignation(id, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["designations"] }),
   });
 }
@@ -169,7 +169,7 @@ export function useCostCenters(companyId?: string) {
     queryFn: async () => {
       try {
         return await TenantApi.getCostCenters(companyId);
-      } catch (err) {
+      } catch {
         return [
           { id: "cc1", companyId: "1", code: "CC-101", name: "Core Product Operations", isActive: true },
           { id: "cc2", companyId: "1", code: "CC-102", name: "Sales & Marketing", isActive: true },
@@ -190,7 +190,7 @@ export function useCreateCostCenter() {
 export function useUpdateCostCenter() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => TenantApi.updateCostCenter(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Partial<import("@/lib/api/tenant").CostCenter> }) => TenantApi.updateCostCenter(id, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["cost-centers"] }),
   });
 }
@@ -202,7 +202,7 @@ export function useFinancialYears() {
     queryFn: async () => {
       try {
         return await TenantApi.getFinancialYears();
-      } catch (err) {
+      } catch {
         return [
           { id: "fy26", companyId: "1", label: "FY 2025-2026", startDate: "2025-07-01", endDate: "2026-06-30", isCurrent: true },
           { id: "fy25", companyId: "1", label: "FY 2024-2025", startDate: "2024-07-01", endDate: "2025-06-30", isCurrent: false },
@@ -235,7 +235,7 @@ export function usePayrollCalendars(financialYearId?: string) {
     queryFn: async () => {
       try {
         return await TenantApi.getPayrollCalendars(financialYearId);
-      } catch (err) {
+      } catch {
         return [
           { id: "cal-01", companyId: "1", financialYearId: "fy26", month: 1, year: 2026, workingDays: 22, status: "Open" },
           { id: "cal-02", companyId: "1", financialYearId: "fy26", month: 2, year: 2026, workingDays: 20, status: "Frozen" },

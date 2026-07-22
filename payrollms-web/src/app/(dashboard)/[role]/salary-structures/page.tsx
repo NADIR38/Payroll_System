@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { SalaryApi, SalaryStructureResponse } from "@/lib/api/salary";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { SectionHeader } from "@/components/ui/section-header";
-import { Plus, Trash2, Edit, Calculator } from "lucide-react";
+import { Plus, Trash2, Calculator } from "lucide-react";
 import { toast } from "sonner";
 import { isAxiosError } from "axios";
 
@@ -27,13 +27,8 @@ export default function SalaryStructuresPage() {
   const [formData, setFormData] = useState({ name: "", description: "", code: "", effectiveFrom: new Date().toISOString().split('T')[0] });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    fetchStructures();
-  }, []);
-
-  const fetchStructures = async () => {
+  const fetchStructures = useCallback(async () => {
     try {
-      setIsLoading(true);
       const data = await SalaryApi.getStructures();
       setStructures(data);
     } catch (error) {
@@ -41,7 +36,23 @@ export default function SalaryStructuresPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadStructures = async () => {
+      try {
+        const data = await SalaryApi.getStructures();
+        if (isMounted) setStructures(data);
+      } catch (error) {
+        console.error("Failed to load salary structures:", error);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+    loadStructures();
+    return () => { isMounted = false; };
+  }, []);
 
   const openCreateDialog = () => {
     setFormData({ name: "", description: "", code: "", effectiveFrom: new Date().toISOString().split('T')[0] });
@@ -109,7 +120,7 @@ export default function SalaryStructuresPage() {
             <div className="flex justify-center p-8 text-slate-500">Loading structures...</div>
           ) : structures.length === 0 ? (
             <div className="text-center p-8 text-slate-500 bg-slate-50 rounded-lg border border-dashed border-slate-200">
-              No salary structures configured yet. Click "Create Structure" to start.
+              No salary structures configured yet. Click &quot;Create Structure&quot; to start.
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

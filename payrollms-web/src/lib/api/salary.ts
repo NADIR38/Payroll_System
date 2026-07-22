@@ -32,8 +32,8 @@ export interface SalaryStructureComponentResponse {
   sequence: number;
   fixedAmount: number | null;
   isActive: boolean;
-  allowanceRule?: any;
-  deductionRule?: any;
+  allowanceRule?: unknown;
+  deductionRule?: unknown;
 }
 
 export interface CreateSalaryComponentCommand {
@@ -108,28 +108,28 @@ export const SalaryApi = {
     return apiClient.get(`/salary-components/${id}`);
   },
   createComponent: async (data: CreateSalaryComponentCommand): Promise<{ id: string }> => {
-    const res = (await apiClient.post("/salary-components", data)) as any;
+    const res = (await apiClient.post("/salary-components", data)) as { id: string } | string;
     return typeof res === "string" ? { id: res } : res;
   },
   updateComponent: async (id: string, data: UpdateSalaryComponentCommand): Promise<void> => {
-    return apiClient.put(`/salary-components/${id}`, data) as any;
+    return apiClient.put(`/salary-components/${id}`, data);
   },
   deactivateComponent: async (id: string): Promise<void> => {
-    return apiClient.delete(`/salary-components/${id}`) as any;
+    return apiClient.delete(`/salary-components/${id}`);
   },
   seedComponents: async (): Promise<void> => {
-    return apiClient.post("/salary-components/seed") as any;
+    return apiClient.post("/salary-components/seed");
   },
 
   // Structures
   getStructures: async (): Promise<SalaryStructureResponse[]> => {
-    return apiClient.get("/salary-structures") as any;
+    return apiClient.get("/salary-structures");
   },
   getStructureById: async (id: string): Promise<SalaryStructureResponse> => {
-    return apiClient.get(`/salary-structures/${id}`) as any;
+    return apiClient.get(`/salary-structures/${id}`);
   },
   createStructure: async (data: CreateSalaryStructureCommand): Promise<{ id: string }> => {
-    const res = (await apiClient.post("/salary-structures", data)) as any;
+    const res = (await apiClient.post("/salary-structures", data)) as { id: string } | string;
     return typeof res === "string" ? { id: res } : res;
   },
   addComponent: async (id: string, data: AddComponentToStructureCommand): Promise<void> => {

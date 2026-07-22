@@ -39,38 +39,41 @@ export default function NewEmployeePage() {
     attendanceDeductionOptIn: false,
   });
 
+
+
   useEffect(() => {
-    fetchReferenceData();
+    let isMounted = true;
+    const loadRefData = async () => {
+      try {
+        const [bData, dData, desigData, sData] = await Promise.all([
+          TenantApi.getBranches(),
+          TenantApi.getDepartments(),
+          TenantApi.getDesignations(),
+          SalaryApi.getStructures(),
+        ]);
+        if (isMounted) {
+          setBranches(bData);
+          setDepartments(dData);
+          setDesignations(desigData);
+          setStructures(sData);
+
+          setFormData(prev => ({
+            ...prev,
+            branchId: bData[0]?.id || "",
+            departmentId: dData[0]?.id || "",
+            designationId: desigData[0]?.id || "",
+            salaryStructureId: sData[0]?.id || "",
+          }));
+        }
+      } catch (error) {
+        console.error("Failed to load reference data:", error);
+      } finally {
+        if (isMounted) setIsLoadingData(false);
+      }
+    };
+    loadRefData();
+    return () => { isMounted = false; };
   }, []);
-
-  const fetchReferenceData = async () => {
-    try {
-      setIsLoadingData(true);
-      const [bData, dData, desigData, sData] = await Promise.all([
-        TenantApi.getBranches(),
-        TenantApi.getDepartments(),
-        TenantApi.getDesignations(),
-        SalaryApi.getStructures(),
-      ]);
-      setBranches(bData);
-      setDepartments(dData);
-      setDesignations(desigData);
-      setStructures(sData);
-
-      // Set defaults if data exists
-      setFormData(prev => ({
-        ...prev,
-        branchId: bData[0]?.id || "",
-        departmentId: dData[0]?.id || "",
-        designationId: desigData[0]?.id || "",
-        salaryStructureId: sData[0]?.id || "",
-      }));
-    } catch (error) {
-      console.error("Failed to load reference data:", error);
-    } finally {
-      setIsLoadingData(false);
-    }
-  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;

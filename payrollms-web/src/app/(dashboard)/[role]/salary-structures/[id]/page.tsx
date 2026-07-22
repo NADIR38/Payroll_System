@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import { 
   SalaryApi, 
@@ -40,11 +40,7 @@ export default function SalaryStructureBuilderPage({ params }: { params: Promise
   const [validationResult, setValidationResult] = useState<{isValid: boolean, message?: string, evaluatedResult?: number} | null>(null);
   const [isValidating, setIsValidating] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-  }, [id]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [structData, compsData] = await Promise.all([
         SalaryApi.getStructureById(id),
@@ -57,7 +53,29 @@ export default function SalaryStructureBuilderPage({ params }: { params: Promise
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadData = async () => {
+      try {
+        const [structData, compsData] = await Promise.all([
+          SalaryApi.getStructureById(id),
+          SalaryApi.getComponents()
+        ]);
+        if (isMounted) {
+          setStructure(structData);
+          setAllComponents(compsData);
+        }
+      } catch (error) {
+        console.error("Failed to load builder data:", error);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+    loadData();
+    return () => { isMounted = false; };
+  }, [id]);
 
   const handleAddComponent = async (componentId: string) => {
     try {
@@ -115,10 +133,10 @@ export default function SalaryStructureBuilderPage({ params }: { params: Promise
         message: res.errorMessage,
         evaluatedResult: res.evaluatedResult
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       setValidationResult({
         isValid: false,
-        message: error.message || "Failed to parse formula"
+        message: isAxiosError(error) ? error.response?.data?.detail || error.message : (error as Error).message || "Failed to parse formula"
       });
     } finally {
       setIsValidating(false);

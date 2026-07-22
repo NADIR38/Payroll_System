@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { EmployeeApi, EmployeeProfileResponse } from "@/lib/api/employee";
-import { TenantApi, DepartmentDto, DesignationDto } from "@/lib/api/tenant";
+import { TenantApi } from "@/lib/api/tenant";
 import { useDebounce } from "@/hooks/useDebounce";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,13 +25,8 @@ export default function EmployeesPage() {
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    fetchData(debouncedSearchTerm);
-  }, [debouncedSearchTerm]);
-
-  const fetchData = async (search?: string) => {
+  const fetchData = useCallback(async (search?: string) => {
     try {
-      setIsLoading(true);
       const [empData, deptList, desigList] = await Promise.all([
         EmployeeApi.getEmployees(search ? { searchTerm: search } : undefined),
         TenantApi.getDepartments(),
@@ -52,7 +47,37 @@ export default function EmployeesPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadEmpData = async () => {
+      try {
+        const [empData, deptList, desigList] = await Promise.all([
+          EmployeeApi.getEmployees(debouncedSearchTerm ? { searchTerm: debouncedSearchTerm } : undefined),
+          TenantApi.getDepartments(),
+          TenantApi.getDesignations()
+        ]);
+        if (isMounted) {
+          const deptMap: Record<string, string> = {};
+          deptList.forEach(d => deptMap[d.id] = d.name);
+          setDepartments(deptMap);
+
+          const desigMap: Record<string, string> = {};
+          desigList.forEach(d => desigMap[d.id] = d.name);
+          setDesignations(desigMap);
+
+          setEmployees(empData);
+        }
+      } catch (error) {
+        console.error("Failed to load employees:", error);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+    loadEmpData();
+    return () => { isMounted = false; };
+  }, [debouncedSearchTerm]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,7 +137,7 @@ export default function EmployeesPage() {
               <Users className="w-12 h-12 text-slate-300 mb-4" />
               <h3 className="text-lg font-medium text-slate-900 mb-1">No employees found</h3>
               <p className="text-sm text-slate-500 max-w-sm text-center mb-4">
-                We couldn't find any employees matching your search criteria, or your directory is currently empty.
+                We couldn&apos;t find any employees matching your search criteria, or your directory is currently empty.
               </p>
               <Button onClick={() => router.push(`/${role}/employees/new`)} variant="outline">
                 Create First Employee

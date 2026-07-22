@@ -1,16 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { payrollApi, PayrollRunResponse, PayrollEntryResponse, PayrollEntryComponentResponse } from "@/lib/api/payroll";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { SectionHeader } from "@/components/ui/section-header";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, XCircle, Edit, DollarSign, Users, ShieldAlert } from "lucide-react";
+import { CheckCircle, XCircle, Edit, Users } from "lucide-react";
 import { toast } from "sonner";
 import { isAxiosError } from "axios";
 
@@ -38,15 +37,8 @@ export default function PayrollRunDetailPage() {
   const [rejectComments, setRejectComments] = useState("");
   const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
 
-  useEffect(() => {
-    if (runId) {
-      fetchRunDetail();
-    }
-  }, [runId]);
-
-  const fetchRunDetail = async () => {
+  const fetchRunDetail = useCallback(async () => {
     try {
-      setIsLoading(true);
       const runData = await payrollApi.getPayrollRunById(runId);
       setRun(runData);
 
@@ -57,7 +49,28 @@ export default function PayrollRunDetailPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [runId]);
+
+  useEffect(() => {
+    if (!runId) return;
+    let isMounted = true;
+    const loadData = async () => {
+      try {
+        const runData = await payrollApi.getPayrollRunById(runId);
+        const entriesData = await payrollApi.getPayrollEntries(runId, 1, 100);
+        if (isMounted) {
+          setRun(runData);
+          setEntries(entriesData.items);
+        }
+      } catch (error) {
+        console.error("Failed to load run details:", error);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+    loadData();
+    return () => { isMounted = false; };
+  }, [runId]);
 
   const handleOverrideSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

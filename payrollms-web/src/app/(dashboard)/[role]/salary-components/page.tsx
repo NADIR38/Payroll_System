@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
-import { SalaryApi, SalaryComponentResponse, CreateSalaryComponentCommand, UpdateSalaryComponentCommand } from "@/lib/api/salary";
+import { useEffect, useState, useCallback } from "react";
+import { SalaryApi, SalaryComponentResponse } from "@/lib/api/salary";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,10 +14,6 @@ import { toast } from "sonner";
 import { isAxiosError } from "axios";
 
 export default function SalaryComponentsPage() {
-  const router = useRouter();
-  const params = useParams();
-  const role = params.role as string;
-  
   const [components, setComponents] = useState<SalaryComponentResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSeeding, setIsSeeding] = useState(false);
@@ -34,13 +29,8 @@ export default function SalaryComponentsPage() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    fetchComponents();
-  }, []);
-
-  const fetchComponents = async () => {
+  const fetchComponents = useCallback(async () => {
     try {
-      setIsLoading(true);
       const data = await SalaryApi.getComponents();
       setComponents(data);
     } catch (error) {
@@ -48,7 +38,23 @@ export default function SalaryComponentsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadComponents = async () => {
+      try {
+        const data = await SalaryApi.getComponents();
+        if (isMounted) setComponents(data);
+      } catch (error) {
+        console.error("Failed to load salary components:", error);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+    loadComponents();
+    return () => { isMounted = false; };
+  }, []);
 
   const handleSeed = async () => {
     try {
@@ -151,7 +157,7 @@ export default function SalaryComponentsPage() {
             <div className="flex justify-center p-8 text-slate-500">Loading components...</div>
           ) : components.length === 0 ? (
             <div className="text-center p-8 text-slate-500 bg-slate-50 rounded-lg border border-dashed border-slate-200">
-              No components configured yet. Click "Seed Defaults" to load standard elements.
+              No components configured yet. Click &quot;Seed Defaults&quot; to load standard elements.
             </div>
           ) : (
             <div className="rounded-md border border-slate-200 overflow-hidden">

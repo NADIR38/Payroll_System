@@ -11,7 +11,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter 
 } from "@/components/ui/dialog"
-import { Plus, Building2, Briefcase, Award, Landmark, MapPin, Pencil } from "lucide-react"
+import { Plus, MapPin, Pencil } from "lucide-react"
 import { 
   useBranches, useCreateBranch, useUpdateBranch,
   useDepartments, useCreateDepartment, useUpdateDepartment,
@@ -20,6 +20,23 @@ import {
   useFinancialYears, useCreateFinancialYear,
   usePayrollCalendars, useCreatePayrollCalendar
 } from "@/hooks/useTenant"
+
+type OrganizationItem = {
+  id: string;
+  code?: string;
+  name?: string;
+  address?: string;
+  branchId?: string;
+  grade?: string;
+  startDate?: string;
+  endDate?: string;
+  month?: number;
+  year?: number;
+  workingDays?: number;
+  payrollFreezeDate?: string;
+  paymentDate?: string;
+  financialYearId?: string;
+};
 
 export default function OrganizationPage() {
   const { data: branches } = useBranches()
@@ -54,22 +71,23 @@ export default function OrganizationPage() {
     workingDays: 20, freezeDate: "", paymentDate: "", financialYearId: ""
   })
 
-  const openEditModal = (item: any) => {
-    setEditingId(item.id)
+  const openEditModal = (item: OrganizationItem) => {
+    const raw = item as Record<string, string | number | undefined>;
+    setEditingId(String(raw.id || ""));
     setFormData({
-      code: item.code || "",
-      name: item.name || "",
-      address: item.address || "",
-      branchId: item.branchId || "",
-      grade: item.grade || "",
-      startDate: item.startDate || "",
-      endDate: item.endDate || "",
-      month: item.month || new Date().getMonth() + 1,
-      year: item.year || new Date().getFullYear(),
-      workingDays: item.workingDays || 20,
-      freezeDate: item.payrollFreezeDate || "",
-      paymentDate: item.paymentDate || "",
-      financialYearId: item.financialYearId || ""
+      code: String(raw.code || ""),
+      name: String(raw.name || ""),
+      address: String(raw.address || ""),
+      branchId: String(raw.branchId || ""),
+      grade: String(raw.grade || ""),
+      startDate: String(raw.startDate || ""),
+      endDate: String(raw.endDate || ""),
+      month: Number(raw.month || new Date().getMonth() + 1),
+      year: Number(raw.year || new Date().getFullYear()),
+      workingDays: Number(raw.workingDays || 20),
+      freezeDate: String(raw.payrollFreezeDate || ""),
+      paymentDate: String(raw.paymentDate || ""),
+      financialYearId: String(raw.financialYearId || "")
     })
     setIsModalOpen(true)
   }
